@@ -5,8 +5,8 @@ from simple_parsing import parse
 import torch
 from torch.nn import Linear
 
-from primitives.hub import make_mxfp4_path, save_quantized
-from primitives.model import load_model
+from primitives.model import load_model, save_quantized
+from primitives.paths import make_mxfp4_path
 from primitives.quantization import find_mxfp4_scale, round_to_mxfp4_grid
 from primitives.utils import format_duration, format_memory
 

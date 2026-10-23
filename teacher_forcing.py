@@ -9,8 +9,8 @@ from torch.nn.functional import log_softmax
 from transformers import PreTrainedModel
 
 from primitives.dataset import load_math500
-from primitives.hub import download_model, get_pending_targets, load_result, save_tensors
-from primitives.model import load_model
+from primitives.hub import get_pending_targets, load_result, save_tensors
+from primitives.model import download_model, load_model
 from primitives.utils import format_duration, format_memory
 
 
@@ -35,7 +35,8 @@ def get_think_hiddens(
 def main() -> None:
     config = parse(Config)
     file_name = f"seed={config.seed}"
-    targets = [target for target in get_pending_targets("teacher_forcing", config.model_name, file_name, "safetensors") if target.startswith(("gptq/", "mxfp4/", "qat/"))]
+    # bf16은 비교 기준이라 대상에서 뺌.
+    targets = get_pending_targets("teacher_forcing", config.model_name, file_name, "safetensors", include_bf16=False)
     bf16_result = load_result(f"math500/bf16/{config.model_name}", file_name)
     prompts = [prompt for prompt, _ in load_math500()]
     bf16_model, tokenizer = load_model(f"Qwen/{config.model_name}", config.model_name)

@@ -17,6 +17,7 @@
 - qat kd는 반복과 길이는 회복. 정확도는 일부만 회복.
 - 엔트로피 가중 효과는 작음.
 - on-policy로 학습해도 정확도는 더 회복되지 않음.
+- scale을 함께 학습(lsq)해도 마찬가지.
 
 ### 한계
 
@@ -41,13 +42,13 @@ meta 논문의 overthinking 단어는 둘로 묶음. 의심 단어는 wait, but,
 <details>
 <summary>figures</summary>
 
-![](./figures/Qwen3-0.6B/gptq.png)
+![](./figures/gptq/Qwen3-0.6B/math500.png)
 
-![](./figures/Qwen3-1.7B/gptq.png)
+![](./figures/gptq/Qwen3-1.7B/math500.png)
 
-![](./figures/Qwen3-0.6B/gptq_words.png)
+![](./figures/gptq/Qwen3-0.6B/words.png)
 
-![](./figures/Qwen3-1.7B/gptq_words.png)
+![](./figures/gptq/Qwen3-1.7B/words.png)
 
 </details>
 
@@ -70,13 +71,13 @@ gptq는 두 모델 모두 정확도가 떨어짐(0.6b 76.6%→62.9%, 1.7b 91.0%�
 <details>
 <summary>figures</summary>
 
-![](./figures/Qwen3-0.6B/gptq_teacher_forcing.png)
+![](./figures/gptq/Qwen3-0.6B/teacher_forcing.png)
 
-![](./figures/Qwen3-1.7B/gptq_teacher_forcing.png)
+![](./figures/gptq/Qwen3-1.7B/teacher_forcing.png)
 
-![](./figures/Qwen3-0.6B/gptq_teacher_forcing_words.png)
+![](./figures/gptq/Qwen3-0.6B/teacher_forcing_words.png)
 
-![](./figures/Qwen3-1.7B/gptq_teacher_forcing_words.png)
+![](./figures/gptq/Qwen3-1.7B/teacher_forcing_words.png)
 
 </details>
 
@@ -103,11 +104,11 @@ high와 random은 10%, 20%, low는 20%, 80%를 봄. low 80%는 reqat가 저엔�
 <details>
 <summary>figures</summary>
 
-![](./figures/Qwen3-0.6B/gptq_routing.png)
+![](./figures/gptq_routing/Qwen3-0.6B/math500.png)
 
-![](./figures/Qwen3-1.7B/gptq_routing.png)
+![](./figures/gptq_routing/Qwen3-1.7B/math500.png)
 
-![](./figures/Qwen3-1.7B/mxfp4_routing.png)
+![](./figures/mxfp4/Qwen3-1.7B/math500.png)
 
 </details>
 
@@ -132,9 +133,9 @@ mxfp4도 비슷한 경향. high 20%가 random 20%보다 더 회복(+3.6%p 대 +1
 <details>
 <summary>figures</summary>
 
-![](./figures/Qwen3-0.6B/qat.png)
+![](./figures/qat/Qwen3-0.6B/math500.png)
 
-![](./figures/Qwen3-0.6B/qat_teacher_forcing.png)
+![](./figures/qat/Qwen3-0.6B/kl_by_entropy.png)
 
 </details>
 
@@ -154,10 +155,43 @@ mxfp4도 비슷한 경향. high 20%가 random 20%보다 더 회복(+3.6%p 대 +1
 
 #### 결과
 
-그림은 앞의 qat kd를 참고.
+<details>
+<summary>figures</summary>
+
+![](./figures/qat_on_policy/Qwen3-0.6B/math500.png)
+
+![](./figures/qat_on_policy/Qwen3-0.6B/kl_by_entropy.png)
+
+</details>
 
 on-policy는 정확도를 더 회복하지 못함(가중 1 66.4% 대 off-policy 68.6%, 가중 3 66.4% 대 68.0%). 반복(1.6% 대 2.8%, 1.8% 대 1.2%)과 길이(1.18배 대 0.99배, 1.08배 대 1.08배)도 방향이 일정하지 않음.
 
 teacher forcing의 고엔트로피 kl도 비슷함(0.094 대 0.088, 0.090 대 0.085).
 
 > on-policy로도 정확도와 고엔트로피 kl은 회복되지 않음.
+
+### lsq qat kd 학습
+
+#### 실험 설정
+
+on-policy로도 회복되지 않음. 학습 문맥보다 scale과 zero를 고정한 표현력이 한계일 수 있음. 그래서 lsq처럼 scale도 학습함.
+
+앞의 qat kd(off-policy, 가중 1)에서 zero만 고정하고 weight와 scale을 학습. ste는 round에만 써서 scale에도 기울기가 감. scale learning rate는 1e-6과 1e-5(weight는 1e-4). 1e-4는 발산해서 뺌. seed 0만. 평가는 앞과 같음.
+
+#### 결과
+
+<details>
+<summary>figures</summary>
+
+![](./figures/qat_lsq/Qwen3-0.6B/math500.png)
+
+![](./figures/qat_lsq/Qwen3-0.6B/kl_by_entropy.png)
+
+</details>
+
+scale을 학습해도 정확도는 그대로(1e-6 69.0%, 1e-5 67.8% 대 scale 고정 68.6%). scale도 거의 움직이지 않음(중앙값 0.1%, 1.1%).
+
+teacher forcing의 고엔트로피 kl도 비슷함(0.087, 0.088 대 0.088).
+
+> scale을 학습해도 정확도와 고엔트로피 kl은 회복되지 않음.
+

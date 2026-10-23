@@ -2,13 +2,12 @@ import json
 from pathlib import Path
 
 from datasets import load_dataset
-from huggingface_hub import hf_hub_download
-from safetensors.torch import load_file
+from safetensors.torch import load_file, save
 import torch
 from torch import Tensor
 from transformers import PreTrainedTokenizerBase
 
-from primitives.hub import get_repo_name
+from primitives.hub import download_file, upload_file
 
 MATH_PROMPT = """\
 {problem}
@@ -30,14 +29,22 @@ def load_numina_prompts(
     return prompts
 
 
-def load_generations(
+def save_generated(
+    path: str,
+    rows: list[dict],
+    tensors: dict[str, Tensor],
+) -> None:
+    upload_file(f"{path}/rows.json", json.dumps(rows, indent=2).encode())
+    upload_file(f"{path}/outputs.safetensors", save(tensors))
+
+
+def load_generated(
     path: str,
     tokenizer: PreTrainedTokenizerBase,
     max_sequence_len: int,
 ) -> list[Tensor]:
-    repo_name = get_repo_name()
-    rows = json.loads(Path(hf_hub_download(repo_name, f"{path}/rows.json")).read_text())
-    tensors = load_file(hf_hub_download(repo_name, f"{path}/outputs.safetensors"))
+    rows = json.loads(Path(download_file(f"{path}/rows.json")).read_text())
+    tensors = load_file(download_file(f"{path}/outputs.safetensors"))
     output_ids = tensors["output_ids"].split(tensors["output_lens"].tolist())
 
     messages = [[{"role": "user", "content": row["prompt"]}] for row in rows]

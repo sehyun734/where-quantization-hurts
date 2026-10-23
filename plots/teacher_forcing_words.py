@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from simple_parsing import parse
 from transformers import AutoTokenizer
 
-from primitives.plot import MARKERS, get_labels, get_method_handles, get_words, load_tensor_results, plot_word_rates, save_figure
+from primitives.plot import get_labels, get_method_handles, get_words, load_tensor_results, plot_words, save_figure
 
 
 @dataclass
@@ -35,17 +35,11 @@ def main() -> None:
         counts = Counter(token_words[token_id] for token_id in result["top1"][is_high].tolist() if token_words[token_id])
         bf16_rates = {word: count / is_high.sum().item() * 1000 for word, count in bf16_counts.items()}
         rates = {word: count / is_high.sum().item() * 1000 for word, count in counts.items()}
-        words = sorted(bf16_rates.keys() | rates.keys(), key=lambda word: rates.get(word, 0) - bf16_rates.get(word, 0), reverse=True)
-        word_groups = {"increased": words[: config.num_words], "decreased": words[::-1][: config.num_words], "markers": [word for marker_words in MARKERS.values() for word in marker_words]}
-
-        for ax, (group, group_words) in zip(row_axes, word_groups.items()):
-            plot_word_rates(ax, group_words, bf16_rates, rates, method)
-            ax.set_title(f"{label}\n{group} on {is_high.sum().item()} high entropy positions", fontsize=10)
-            ax.set_xlabel("top-1 count per 1k high entropy positions")
+        plot_words(row_axes, bf16_rates, rates, method, config.num_words, f"{label}, {is_high.sum().item()} high entropy positions", "top-1 count per 1k high entropy positions")
 
     handles = get_method_handles(targets)
     fig.legend(handles=handles, loc="outside upper center", ncol=len(handles), frameon=False, title=f"{config.model_name} math500 teacher forcing words, high_entropy_ratio={config.high_entropy_ratio:g}")
-    save_figure(fig, Path(f"figures/{config.model_name}/gptq_teacher_forcing_words.png"))
+    save_figure(fig, Path(f"figures/gptq/{config.model_name}/teacher_forcing_words.png"))
 
 
 if __name__ == "__main__":

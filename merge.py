@@ -11,7 +11,9 @@ from safetensors.torch import load_file, save_file
 from simple_parsing import parse
 import torch
 
-from primitives.hub import download_model, make_gptq_path, make_mxfp4_path, save_merged
+from primitives.hub import upload_folder
+from primitives.model import download_model
+from primitives.paths import make_gptq_path, make_mxfp4_path
 
 
 @dataclass
@@ -65,7 +67,7 @@ def main() -> None:
         quantized_path = make_mxfp4_path(config.model_name, config.mxfp4_group_size)
     with TemporaryDirectory() as directory:
         merge(snapshot_download(f"Qwen/{config.model_name}"), download_model(quantized_path), directory)
-        save_merged(f"merge/{quantized_path}", directory)
+        upload_folder(f"merge/{quantized_path}", directory)
 
 
 if __name__ == "__main__":

@@ -21,8 +21,9 @@ from vllm.model_executor.models.utils import AutoWeightsLoader, maybe_prefix  # 
 
 from primitives.dataset import load_math500
 from primitives.evaluation import evaluate_math500
-from primitives.hub import download_model, load_tensors, make_gptq_path, make_mxfp4_path, make_routing_path, save_result
-from primitives.model import generate_vllm, load_vllm
+from primitives.hub import load_tensors, save_result
+from primitives.model import download_model, generate_vllm, load_vllm
+from primitives.paths import make_gptq_path, make_mxfp4_path, make_routing_path
 from primitives.utils import format_duration
 
 

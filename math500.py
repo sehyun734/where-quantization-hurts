@@ -6,8 +6,8 @@ from simple_parsing import parse
 
 from primitives.dataset import load_math500
 from primitives.evaluation import evaluate_math500
-from primitives.hub import download_model, get_pending_targets, save_result
-from primitives.model import generate_vllm, load_vllm
+from primitives.hub import get_pending_targets, save_result
+from primitives.model import download_model, generate_vllm, load_vllm
 from primitives.utils import format_duration
 
 

@@ -10,9 +10,9 @@ from torch.nn.functional import log_softmax
 from torch.optim import AdamW
 from transformers import set_seed
 
-from primitives.dataset import load_generations
-from primitives.hub import download_model, load_grid, make_gptq_path, make_numina_path, make_qat_path, save_quantized
-from primitives.model import load_model
+from primitives.dataset import load_generated
+from primitives.model import download_model, load_grid, load_model, save_quantized
+from primitives.paths import make_gptq_path, make_numina_path, make_qat_path
 from primitives.quantization import STELinear
 from primitives.utils import format_duration, format_memory
 
@@ -30,6 +30,8 @@ class Config:
     num_epochs: int = 1
     threshold_num_samples: int = 256
     on_policy: bool = False
+    # 0이면 scale은 gptq 값으로 고정.
+    scale_learning_rate: float = 0.0
     max_sequence_len: int = 8192
     batch_size: int = 8
     seed: int = 0
@@ -41,7 +43,7 @@ def main() -> None:
     gptq_path = make_gptq_path(config.model_name, config.num_bits, config.group_size, config.num_samples)
     bf16_model, tokenizer = load_model(f"Qwen/{config.model_name}", config.model_name)
     model, _ = load_model(download_model(gptq_path), config.model_name, dtype=torch.float32)
-    samples = load_generations(make_numina_path(config.model_name, config.qat_num_samples, gptq_path if config.on_policy else None), tokenizer, config.max_sequence_len)
+    samples = load_generated(make_numina_path(config.model_name, config.qat_num_samples, gptq_path if config.on_policy else None), tokenizer, config.max_sequence_len)
 
     # 가중을 줄 엔트로피 경계는 학습 데이터 일부의 bf16 엔트로피로 정함.
     entropies = []
@@ -56,7 +58,9 @@ def main() -> None:
     grid = load_grid(gptq_path)
     linears = [(name, linear) for name, linear in model.model.layers.named_modules() if isinstance(linear, Linear)]
     ste_linears = []
-    parameters = []
+    weights = []
+    scales = []
+    is_lsq = config.scale_learning_rate > 0
     for name, linear in linears:
         scale = grid[f"model.layers.{name}.scale"].to(model.device)
         zero = grid[f"model.layers.{name}.zero"].to(model.device)
@@ -64,8 +68,12 @@ def main() -> None:
         parent_name, child_name = name.rsplit(".", 1)
         setattr(model.model.layers.get_submodule(parent_name), child_name, ste_linear)
         ste_linears.append(ste_linear)
-        parameters.append(ste_linear.weight.requires_grad_(True))
-    optimizer = AdamW(parameters, lr=config.learning_rate, weight_decay=0)
+        weights.append(ste_linear.weight.requires_grad_(True))
+        scales.append(ste_linear.scale.requires_grad_(is_lsq))
+    parameters = [{"params": weights, "lr": config.learning_rate}]
+    if is_lsq:
+        parameters.append({"params": scales, "lr": config.scale_learning_rate})
+    optimizer = AdamW(parameters, weight_decay=0)
     mean_weight = 1 - config.high_entropy_ratio + config.high_entropy_ratio * config.high_entropy_weight
 
     num_batches = math.ceil(len(samples) / config.batch_size)
@@ -107,10 +115,11 @@ def main() -> None:
     with torch.no_grad():
         for (name, linear), ste_linear in zip(linears, ste_linears):
             linear.weight.copy_(ste_linear.quantize())
+            grid[f"model.layers.{name}.scale"] = ste_linear.scale.detach().cpu()
             parent_name, child_name = name.rsplit(".", 1)
             setattr(model.model.layers.get_submodule(parent_name), child_name, linear)
     model.to(torch.bfloat16)
-    save_quantized(make_qat_path(config.model_name, config.num_bits, config.group_size, config.num_samples, config.qat_num_samples, config.high_entropy_ratio, config.high_entropy_weight, config.learning_rate, config.num_epochs, config.threshold_num_samples, config.on_policy), model, grid)
+    save_quantized(make_qat_path(config.model_name, config.num_bits, config.group_size, config.num_samples, config.qat_num_samples, config.high_entropy_ratio, config.high_entropy_weight, config.learning_rate, config.num_epochs, config.threshold_num_samples, config.on_policy, config.scale_learning_rate), model, grid)
 
 
 if __name__ == "__main__":

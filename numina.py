@@ -6,9 +6,9 @@ from typing import Literal
 from simple_parsing import parse
 import torch
 
-from primitives.dataset import load_numina_prompts
-from primitives.hub import download_model, make_gptq_path, make_numina_path, save_generations
-from primitives.model import generate_vllm, load_vllm
+from primitives.dataset import load_numina_prompts, save_generated
+from primitives.model import download_model, generate_vllm, load_vllm
+from primitives.paths import make_gptq_path, make_numina_path
 from primitives.utils import format_duration
 
 
@@ -43,7 +43,7 @@ def main() -> None:
 
     rows = [{"prompt": prompt, "text": output.text} for prompt, output in zip(prompts, outputs)]
     tensors = {"output_ids": torch.cat([torch.tensor(output.token_ids) for output in outputs]), "output_lens": torch.tensor(output_lens)}
-    save_generations(make_numina_path(config.model_name, config.num_samples, quantized_path), rows, tensors)
+    save_generated(make_numina_path(config.model_name, config.num_samples, quantized_path), rows, tensors)
 
 
 if __name__ == "__main__":
