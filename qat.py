@@ -11,7 +11,7 @@ from torch.optim import AdamW
 from transformers import set_seed
 
 from primitives.dataset import load_generations
-from primitives.hub import download_model, load_grid, load_tensors, make_calibration_path, make_gptq_path, make_qat_path, save_quantized
+from primitives.hub import download_model, load_grid, make_gptq_path, make_numina_path, make_qat_path, save_quantized
 from primitives.model import load_model
 from primitives.quantization import STELinear
 from primitives.utils import format_duration, format_memory
@@ -28,6 +28,8 @@ class Config:
     high_entropy_weight: float = 1.0
     learning_rate: float = 1e-4
     num_epochs: int = 1
+    threshold_num_samples: int = 256
+    on_policy: bool = False
     max_sequence_len: int = 8192
     batch_size: int = 8
     seed: int = 0
@@ -37,12 +39,19 @@ def main() -> None:
     config = parse(Config)
     set_seed(config.seed)
     gptq_path = make_gptq_path(config.model_name, config.num_bits, config.group_size, config.num_samples)
-    # 가중을 줄 엔트로피 경계는 teacher forcing seed 0의 bf16 엔트로피로 정함.
-    entropy = load_tensors(f"teacher_forcing/{gptq_path}", "seed=0")["entropy"]
-    entropy_threshold = entropy.quantile(1 - config.high_entropy_ratio).item()
     bf16_model, tokenizer = load_model(f"Qwen/{config.model_name}", config.model_name)
     model, _ = load_model(download_model(gptq_path), config.model_name, dtype=torch.float32)
-    samples = load_generations(make_calibration_path(config.model_name, config.qat_num_samples), tokenizer, config.max_sequence_len)
+    samples = load_generations(make_numina_path(config.model_name, config.qat_num_samples, gptq_path if config.on_policy else None), tokenizer, config.max_sequence_len)
+
+    # 가중을 줄 엔트로피 경계는 학습 데이터 일부의 bf16 엔트로피로 정함.
+    entropies = []
+    with torch.no_grad():
+        for input_ids in random.sample(samples, config.threshold_num_samples):
+            bf16_logprobs = log_softmax(bf16_model(input_ids=input_ids.unsqueeze(0).to(bf16_model.device)).logits[0, :-1].float(), dim=-1)
+            entropies.append(-(bf16_logprobs.exp() * bf16_logprobs).sum(dim=-1).cpu())
+            del bf16_logprobs
+    entropy_threshold = torch.cat(entropies).quantile(1 - config.high_entropy_ratio).item()
+    print(f"entropy threshold {entropy_threshold:.4f}")
 
     grid = load_grid(gptq_path)
     linears = [(name, linear) for name, linear in model.model.layers.named_modules() if isinstance(linear, Linear)]
@@ -101,7 +110,7 @@ def main() -> None:
             parent_name, child_name = name.rsplit(".", 1)
             setattr(model.model.layers.get_submodule(parent_name), child_name, linear)
     model.to(torch.bfloat16)
-    save_quantized(make_qat_path(config.model_name, config.num_bits, config.group_size, config.num_samples, config.qat_num_samples, config.high_entropy_ratio, config.high_entropy_weight, config.learning_rate, config.num_epochs), model, grid)
+    save_quantized(make_qat_path(config.model_name, config.num_bits, config.group_size, config.num_samples, config.qat_num_samples, config.high_entropy_ratio, config.high_entropy_weight, config.learning_rate, config.num_epochs, config.threshold_num_samples, config.on_policy), model, grid)
 
 
 if __name__ == "__main__":

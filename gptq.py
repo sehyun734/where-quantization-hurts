@@ -8,7 +8,7 @@ from torch.nn import Linear, Module
 from transformers import PreTrainedModel
 
 from primitives.dataset import load_generations
-from primitives.hub import make_calibration_path, make_gptq_path, save_quantized
+from primitives.hub import make_gptq_path, make_numina_path, save_quantized
 from primitives.model import load_model
 from primitives.quantization import find_grid, round_to_grid
 from primitives.utils import format_duration, format_memory
@@ -113,7 +113,7 @@ def quantize_weight(
 def main() -> None:
     config = parse(Config)
     model, tokenizer = load_model(f"Qwen/{config.model_name}", config.model_name)
-    samples = load_generations(make_calibration_path(config.model_name, config.num_samples), tokenizer, config.max_sequence_len)
+    samples = load_generations(make_numina_path(config.model_name, config.num_samples), tokenizer, config.max_sequence_len)
 
     grid = {}
     log_time = time.perf_counter()

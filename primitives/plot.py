@@ -121,7 +121,8 @@ def plot_math500(
     title: str,
 ) -> Figure:
     targets = list(results)
-    fig, axes = plt.subplots(1, 4, figsize=(4 * (2 + 1.5 * len(targets)), 6), layout="constrained")
+    fig, axes = plt.subplots(2, 2, figsize=(2 * (2 + 1.5 * len(targets)), 12), layout="constrained")
+    axes = axes.flatten()
     for x, target in enumerate(targets):
         color = METHOD_COLORS[target.split("/")[0]]
 
@@ -157,7 +158,8 @@ def plot_math500(
 
     style_axis(axes[0], targets, "accuracy")
     axes[0].set_ylim(0, 1)
-    axes[0].set_title("accuracy", fontsize=10, pad=30)
+    # 정확도와 잘림 비율 두 줄 위에 올림.
+    axes[0].set_title("accuracy", fontsize=10, pad=40)
     style_axis(axes[1], targets, "reasoning tokens")
     axes[1].set_title("mean reasoning tokens", fontsize=10, pad=30)
     style_axis(axes[2], targets, "reasoning tokens / bf16")
